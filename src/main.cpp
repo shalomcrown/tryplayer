@@ -237,43 +237,4 @@ int main ( int argc, char *argv[] ) {
     return 0;
 }
 
-//==========================================================
-
-static int decode_packet(AVPacket *pPacket, AVCodecContext *pCodecContext, AVFrame *pFrame,
-                                                        struct SwsContext *sws_ctx, uint8_t *src_data) {
-    int response = avcodec_send_packet(pCodecContext, pPacket);
-
-    if (response < 0) {
-        fprintf(stderr, "Error while sending a packet to the decoder:\n %d", response);
-        return response;
-    }
-
-    while (response >= 0) {
-        response = avcodec_receive_frame(pCodecContext, pFrame);
-
-        if (response == AVERROR(EAGAIN) || response == AVERROR_EOF) {
-            break;
-        } else if (response < 0) {
-            fprintf(stderr, "Error while receiving a frame from the decoder: %d", response);
-            return response;
-        }
-
-        if (response >= 0) {
-            fprintf(stderr,
-                "Frame %d (type=%c, size=%d bytes) pts %ld key_frame %d [DTS %d]\n",
-                    pCodecContext->frame_number,
-                    av_get_picture_type_char(pFrame->pict_type),
-                    pFrame->pkt_size,
-                    pFrame->pts,
-                    pFrame->key_frame,
-                    pFrame->coded_picture_number
-            );
-
-            //save_gray_frame(pFrame->data[0], pFrame->linesize[0], pFrame->width, pFrame->height, frame_filename);
-            av_frame_unref(pFrame);
-        }
-    }
-    return 0;
-}
-
 

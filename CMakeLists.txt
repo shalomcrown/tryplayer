@@ -1,12 +1,18 @@
 cmake_minimum_required(VERSION 2.8.11)
 project(tryplayer)
 
+
+SET(CMAKE_MODULE_PATH ${CMAKE_MODULE_PATH} "${CMAKE_SOURCE_DIR}/Modules/")
 find_package(PkgConfig)
 find_package(SDL2 REQUIRED)
+find_package(SDL2_image REQUIRED)
+find_package(SDL2_ttf REQUIRED)
+
 pkg_check_modules(LIBAVCODEC REQUIRED libavcodec)
 pkg_check_modules(LIBAVFORMAT REQUIRED libavformat)
 pkg_check_modules(LIBAVUTIL REQUIRED libavutil)
 pkg_check_modules(LIBSWSCALE REQUIRED libswscale)
+
 
 # Find includes in corresponding build directories
 set(CMAKE_INCLUDE_CURRENT_DIR ON)
