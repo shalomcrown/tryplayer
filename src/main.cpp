@@ -2,6 +2,7 @@
 #include <stdio.h>
 #include <string>
 #include <iostream>
+#include <algorithm>
 
 extern "C" {
     #include <libavcodec/avcodec.h>
@@ -25,6 +26,25 @@ static int decode_packet(AVPacket *pPacket, AVCodecContext *pCodecContext, AVFra
 // sudo apt-get install libsdl2-dev libavcodec-dev libavdevice-dev libavfilter-dev \
 libavformat-dev libavresample-dev libavutil-dev libswresample-dev libswscale-dev \
 libpostproc-dev libass-dev libsdl-kitchensink-dev libsdl2-gfx-dev
+
+
+uint8_t nybbleToHex(uint8_t nybble) {
+    return nybble > 9 ? nybble + 0x37 : nybble + 0x30;
+}
+
+void hexData(uint8_t *data, uint8_t *output, int length)  {
+    int x = 0;
+    for (int y = 0; y < length; ++y, ++x)  {
+        output[x] = nybbleToHex(data[y] >> 4 & 0xF);
+        output[++x] = nybbleToHex(data[y] & 0xF);
+        output[++x] = 0x20;
+    }
+
+    output[x] = 0;
+}
+
+
+
 
 int main ( int argc, char *argv[] ) {
     SDL_Init(SDL_INIT_VIDEO | SDL_INIT_AUDIO | SDL_INIT_TIMER | SDL_INIT_EVENTS);
@@ -220,6 +240,18 @@ int main ( int argc, char *argv[] ) {
 
         } else  if (pPacket->stream_index == klvStream) {
             fprintf(stderr, "Data packet\n");
+
+            int lineCounter = 0;
+            int amount;
+            char buffer[123];
+            uint8_t *byte = pPacket->buf->data;
+
+            for (amount = pPacket->buf->size; amount > 0;  byte += 16, amount -= 16) {
+
+                int amountThisTime = std::min(16, amount);
+                hexData(byte, reinterpret_cast<uint8_t *>(buffer), amountThisTime);
+                fprintf(stderr, "%s\n", buffer);
+            }
         } else {
             fprintf(stderr, "Unknown packet\n");
         }
