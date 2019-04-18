@@ -3,6 +3,8 @@
 #include <string>
 #include <iostream>
 #include <algorithm>
+#include <argp.h>
+#include <time.h>
 
 extern "C" {
     #include <libavcodec/avcodec.h>
@@ -19,14 +21,50 @@ extern "C" {
 #define AUDIO_INBUF_SIZE 20480
 #define AUDIO_REFILL_THRESH 4096
 
-static int decode_packet(AVPacket *pPacket, AVCodecContext *pCodecContext, AVFrame *pFrame);
-
 // Packages....
 //
 // sudo apt-get install libsdl2-dev libavcodec-dev libavdevice-dev libavfilter-dev \
 libavformat-dev libavresample-dev libavutil-dev libswresample-dev libswscale-dev \
 libpostproc-dev libass-dev libsdl-kitchensink-dev libsdl2-gfx-dev
 
+
+const char *argp_program_version = "tryplayer 1.0";
+const char *argp_program_bug_address = "<shalomcrown@gmail.com>";
+
+bool realTime = false;
+char *source = nullptr;
+
+
+// =====================================================
+
+const struct argp_option options[] = {
+    {"real-time", 'r', 0, 0, "Run video file at natural speed", 0},
+    {0}
+};
+
+// =====================================================
+
+static error_t parse_opt (int key, char *arg, struct argp_state *state) {
+    switch(key) {
+        case 'r':
+            realTime = true;
+            break;
+        case ARGP_KEY_ARG:
+            source = arg;
+            break;
+        default:
+          return ARGP_ERR_UNKNOWN;
+        case ARGP_KEY_END:
+          if (state->arg_num <  1) {
+              argp_usage (state);
+          }
+          break;
+    }
+    
+    return 0;
+}
+
+// =====================================================
 
 uint8_t nybbleToHex(uint8_t nybble) {
     return nybble > 9 ? nybble + 0x37 : nybble + 0x30;
@@ -43,16 +81,20 @@ void hexData(uint8_t *data, uint8_t *output, int length)  {
     output[x] = 0;
 }
 
-
-
+// ========================================================
 
 int main ( int argc, char *argv[] ) {
     SDL_Init(SDL_INIT_VIDEO | SDL_INIT_AUDIO | SDL_INIT_TIMER | SDL_INIT_EVENTS);
     av_register_all();
-    const char *fileName = "/home/shalomc/outputs/KLV/1_2019-04-15_20-05-21S.ts";
+    
+    struct argp args = {options, parse_opt, nullptr, nullptr, nullptr, nullptr, nullptr};
+    argp_parse(&args, argc, argv, 0, 0, 0);
+    
+    const char *fileName = source;
 
     AVFormatContext *pFormatCtx = nullptr;
-    AVCodec *pVideoCodec = NULL;
+    AVCodec *pVideoCodec = nullptr;
+    AVStream *pVideoStream = nullptr;
     int videoStream = -1;
     int klvStream = -1;
     AVCodecParameters *pvideoCodecparameters = nullptr;
@@ -60,6 +102,8 @@ int main ( int argc, char *argv[] ) {
     uint8_t *dst_data[4];
     int src_linesize[4], dst_linesize[4];
     SDL_Window *win;
+    double lastFrameTimeSeconds = 0;
+    time_t lastFrameWallclockTime = time(nullptr);
 
     if (avformat_open_input(&pFormatCtx, fileName, nullptr, nullptr) != 0) {
 
@@ -78,6 +122,7 @@ int main ( int argc, char *argv[] ) {
         AVCodec *pLocalCodec = nullptr;
         AVCodecParameters *pLocalCodecParameters = pFormatCtx->streams[iStream]->codecpar;
         pLocalCodec = avcodec_find_decoder(pLocalCodecParameters->codec_id);
+        AVStream *stream = pFormatCtx->streams[iStream];
 
         if (pLocalCodecParameters->codec_type == AVMEDIA_TYPE_DATA) {
             klvStream = iStream;
@@ -94,6 +139,7 @@ int main ( int argc, char *argv[] ) {
             videoStream = iStream;
             pVideoCodec = pLocalCodec;
             pvideoCodecparameters = pLocalCodecParameters;
+            pVideoStream = stream;
             printf("\tCodec for stream %d: %s ID %d bit_rate %ld\n", iStream, pLocalCodec->name, pLocalCodec->id, pLocalCodecParameters->bit_rate);
         }
     }
@@ -187,15 +233,20 @@ int main ( int argc, char *argv[] ) {
                     return -1;
                 }
 
+                double frameTimeSeconds = (double)pFrame->pts * (double)pVideoStream->time_base.num / (double)pVideoStream->time_base.den;
+
+                time_t nextFrameWallclockTime = lastFrameWallclockTime + (time_t)floor((frameTimeSeconds - lastFrameTimeSeconds) * 1000);
+
                 if (response >= 0) {
                     fprintf(stderr,
-                            "Frame %dx%d %d (type=%c, size=%d bytes) pts %ld key_frame %d [DTS %d]\n",
+                            "Frame %dx%d %d (type=%c, size=%d bytes) pts %ld (%g) key_frame %d [DTS %d]\n",
                             pFrame->width,
                             pFrame->height,
                             pCodecContext->frame_number,
                             av_get_picture_type_char(pFrame->pict_type),
                             pFrame->pkt_size,
                             pFrame->pts,
+                            frameTimeSeconds,
                             pFrame->key_frame,
                             pFrame->coded_picture_number
                     );
@@ -229,6 +280,17 @@ int main ( int argc, char *argv[] ) {
                                         );
 
                     SDL_RenderCopy(ren, texture, NULL, NULL);
+
+                    time_t currentTime = time(nullptr);
+
+                    if (realTime && currentTime < nextFrameWallclockTime) {
+                        time_t waitTime = nextFrameWallclockTime - currentTime;
+                        struct timespec t = {waitTime / 1000, waitTime * 1000000};
+                        nanosleep(&t, nullptr);
+                    }
+
+                    lastFrameWallclockTime = time(nullptr);
+                    lastFrameTimeSeconds = frameTimeSeconds;
                     SDL_RenderPresent(ren);
                     SDL_UpdateWindowSurface(win);
                     SDL_RenderClear(ren);

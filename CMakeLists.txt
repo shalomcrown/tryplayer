@@ -24,12 +24,11 @@ find_package(Qt5Widgets CONFIG REQUIRED)
 
 set(tryplayer_SRC
   src/main.cpp
-  src/tryplayer.cpp
 )
 
 # Create code from a list of Qt designer ui files.
 #set(CMAKE_AUTOUIC ON) # use this if you have CMake 3.x instead of the following
-qt5_wrap_ui(tryplayer_SRC src/tryplayer.ui)
+#qt5_wrap_ui(tryplayer_SRC src/tryplayer.ui)
 
 # Tell CMake to create the helloworld executable
 add_executable(tryplayer ${tryplayer_SRC})
@@ -42,7 +41,7 @@ include_directories(
     ${LIBAVFORMAT_INCLUDE_DIRS})
 
 # Use the Widgets module from Qt 5.
-target_link_libraries(tryplayer Qt5::Widgets
+target_link_libraries(tryplayer #Qt5::Widgets
     ${LIBAVUTIL_LIBRARIES}
     ${LIBAVCODEC_LIBRARIES}
     ${LIBSWSCALE_LIBRARIES}
