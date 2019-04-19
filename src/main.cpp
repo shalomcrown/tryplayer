@@ -28,6 +28,9 @@ libavformat-dev libavresample-dev libavutil-dev libswresample-dev libswscale-dev
 libpostproc-dev libass-dev libsdl-kitchensink-dev libsdl2-gfx-dev
 
 
+// ffmpeg -fflags nobuffer -f v4l2 -video_size 640x480  -i /dev/video0 udp://localhost:1234
+
+
 const char *argp_program_version = "tryplayer 1.0";
 const char *argp_program_bug_address = "<shalomcrown@gmail.com>";
 
@@ -229,6 +232,7 @@ int sdlVideoThread(void *) {
 int main ( int argc, char *argv[] ) {
     SDL_Init(SDL_INIT_VIDEO | SDL_INIT_AUDIO | SDL_INIT_TIMER | SDL_INIT_EVENTS);
     av_register_all();
+    avformat_network_init();
     
     struct argp args = {options, parse_opt, nullptr, nullptr, nullptr, nullptr, nullptr};
     argp_parse(&args, argc, argv, 0, 0, 0);
@@ -355,6 +359,7 @@ int main ( int argc, char *argv[] ) {
                     case SDL_WINDOWEVENT_CLOSE:
                         keepWorking = false;
                         SDL_Quit();
+                        exit(0);
                         break;
                 }
             }
