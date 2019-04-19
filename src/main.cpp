@@ -147,9 +147,8 @@ int sdlVideoThread(void *) {
                             pFrame->coded_picture_number
                     );
 
-
                     struct SwsContext *sws_ctx = sws_getContext(pFrame->width, pFrame->height,
-                                                                AV_PIX_FMT_YUV420P,
+                                                                pVideoStream->codec->pix_fmt,
                                                                 window_width, window_height,
                                                                 AV_PIX_FMT_YUV420P,
                                                                 SWS_BILINEAR, NULL, NULL, NULL );
