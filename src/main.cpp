@@ -5,6 +5,8 @@
 #include <algorithm>
 #include <argp.h>
 #include <time.h>
+#include <X11/Xlib.h>
+#include <X11/Xatom.h>
 
 extern "C" {
     #include <libavcodec/avcodec.h>
@@ -60,11 +62,13 @@ int window_width;
 int window_height;
 SDL_Renderer *ren;
 SDL_Texture *texture;
+char *outputWindow = nullptr;
 
 // =====================================================
 
 const struct argp_option options[] = {
     {"real-time", 'r', 0, 0, "Run video file at natural speed", 0},
+    {"window-name", 'n', "WINDOW_NAME", 0, "Run video file at natural speed", 0},
     {0}
 };
 
@@ -75,6 +79,11 @@ static error_t parse_opt (int key, char *arg, struct argp_state *state) {
         case 'r':
             realTime = true;
             break;
+
+        case 'n':
+        	outputWindow = arg;
+        	break;
+
         case ARGP_KEY_ARG:
             source = arg;
             break;
@@ -107,6 +116,55 @@ void hexData(uint8_t *data, uint8_t *output, int length)  {
     output[x] = 0;
 }
 
+// -----------------------------------------------------------------
+
+long getWindowId(const char *name) {
+	unsigned long nWIndowIds;
+	int form;
+	unsigned long remain;
+	Display *disp = XOpenDisplay(NULL);
+	Window *list;
+	Atom prop = XInternAtom(disp, "_NET_CLIENT_LIST", False);
+	Atom type;
+	long windowHandle = -1;
+
+	if (!disp) {
+		fprintf(stderr, "no display!\n");
+		return -1;
+	}
+
+	if (XGetWindowProperty(disp, XDefaultRootWindow(disp), prop, 0, 1024, False, XA_WINDOW,
+													&type, &form, &nWIndowIds, &remain, (unsigned char **)&list) != Success) {
+		perror("winlist() -- GetWinProp");
+		return -1;
+	    }
+
+	for (int i = 0; i < (int)nWIndowIds; i++) {
+		prop = XInternAtom(disp,"WM_NAME",False), type;
+		unsigned char *windowName;
+		unsigned long len;
+
+		if (XGetWindowProperty(disp, list[i], prop, 0, 1024, False, XA_STRING,
+		                						&type, &form, &len, &remain, &windowName) == Success) {
+
+			if (windowName != nullptr) {
+				if (strcmp((const char *)windowName, name) == 0) {
+					XFree(windowName);
+					windowHandle = list[i];
+					break;
+				} else {
+					XFree(windowName);
+				}
+			}
+		}
+	}
+
+	XFree(list);
+	XCloseDisplay(disp);
+	return windowHandle;
+}
+
+// -----------------------------------------------------------------
 
 int sdlVideoThread(void *) {
 
@@ -314,10 +372,26 @@ int main ( int argc, char *argv[] ) {
 
     response = 0;
 
-    window_width = pvideoCodecparameters->width;
-    window_height = pvideoCodecparameters->height;
+    if (outputWindow != nullptr) {
+    	long windowHandle = getWindowId(outputWindow);
 
-    win = SDL_CreateWindow(fileName, 100, 100, window_width, window_height, SDL_WINDOW_SHOWN);
+    	if (windowHandle == -1) {
+            fprintf(stderr, "Couldn't find window with name %s\n", outputWindow);
+            return -1;
+    	}
+
+    	win = SDL_CreateWindowFrom((const void *)windowHandle);
+
+    	if (win != nullptr) {
+    		SDL_GetWindowSize(win, &window_width, &window_height);
+    	}
+
+    } else {
+        window_width = pvideoCodecparameters->width;
+        window_height = pvideoCodecparameters->height;
+
+        win = SDL_CreateWindow(fileName, 100, 100, window_width, window_height, SDL_WINDOW_SHOWN);
+    }
 
     if (win == nullptr) {
         fprintf(stderr, "Coudln't open window\n");
