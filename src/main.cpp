@@ -5,8 +5,10 @@
 #include <algorithm>
 #include <argp.h>
 #include <time.h>
-#include <X11/Xlib.h>
-#include <X11/Xatom.h>
+#if defined(__linux__)
+    #include <X11/Xlib.h>
+    #include <X11/Xatom.h>
+#endif
 
 extern "C" {
     #include <libavcodec/avcodec.h>
@@ -118,51 +120,57 @@ void hexData(uint8_t *data, uint8_t *output, int length)  {
 
 // -----------------------------------------------------------------
 
-long getWindowId(const char *name) {
-	unsigned long nWIndowIds;
-	int form;
-	unsigned long remain;
-	Display *disp = XOpenDisplay(NULL);
-	Window *list;
-	Atom prop = XInternAtom(disp, "_NET_CLIENT_LIST", False);
-	Atom type;
-	long windowHandle = -1;
+#if defined(__linux__)
+    long getWindowId(const char *name) {
+        unsigned long nWIndowIds;
+        int form;
+        unsigned long remain;
+        Display *disp = XOpenDisplay(NULL);
+        Window *list;
+        Atom prop = XInternAtom(disp, "_NET_CLIENT_LIST", False);
+        Atom type;
+        long windowHandle = -1;
 
-	if (!disp) {
-		fprintf(stderr, "no display!\n");
-		return -1;
-	}
+        if (!disp) {
+            fprintf(stderr, "no display!\n");
+            return -1;
+        }
 
-	if (XGetWindowProperty(disp, XDefaultRootWindow(disp), prop, 0, 1024, False, XA_WINDOW,
-													&type, &form, &nWIndowIds, &remain, (unsigned char **)&list) != Success) {
-		perror("winlist() -- GetWinProp");
-		return -1;
-	    }
+        if (XGetWindowProperty(disp, XDefaultRootWindow(disp), prop, 0, 1024, False, XA_WINDOW,
+                                                        &type, &form, &nWIndowIds, &remain, (unsigned char **)&list) != Success) {
+            perror("winlist() -- GetWinProp");
+            return -1;
+            }
 
-	for (int i = 0; i < (int)nWIndowIds; i++) {
-		prop = XInternAtom(disp,"WM_NAME",False), type;
-		unsigned char *windowName;
-		unsigned long len;
+        for (int i = 0; i < (int)nWIndowIds; i++) {
+            prop = XInternAtom(disp,"WM_NAME",False), type;
+            unsigned char *windowName;
+            unsigned long len;
 
-		if (XGetWindowProperty(disp, list[i], prop, 0, 1024, False, XA_STRING,
-		                						&type, &form, &len, &remain, &windowName) == Success) {
+            if (XGetWindowProperty(disp, list[i], prop, 0, 1024, False, XA_STRING,
+                                                    &type, &form, &len, &remain, &windowName) == Success) {
 
-			if (windowName != nullptr) {
-				if (strcmp((const char *)windowName, name) == 0) {
-					XFree(windowName);
-					windowHandle = list[i];
-					break;
-				} else {
-					XFree(windowName);
-				}
-			}
-		}
-	}
+                if (windowName != nullptr) {
+                    if (strcmp((const char *)windowName, name) == 0) {
+                        XFree(windowName);
+                        windowHandle = list[i];
+                        break;
+                    } else {
+                        XFree(windowName);
+                    }
+                }
+            }
+        }
 
-	XFree(list);
-	XCloseDisplay(disp);
-	return windowHandle;
-}
+        XFree(list);
+        XCloseDisplay(disp);
+        return windowHandle;
+    }
+#else
+    long getWindowId(const char *name) {
+        return -1;
+    }
+#endif
 
 // -----------------------------------------------------------------
 

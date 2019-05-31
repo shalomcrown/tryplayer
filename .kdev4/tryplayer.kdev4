@@ -2,8 +2,8 @@
 BuildItems=@Variant(\x00\x00\x00\t\x00\x00\x00\x00\x01\x00\x00\x00\x0b\x00\x00\x00\x00\x01\x00\x00\x00\x12\x00t\x00r\x00y\x00p\x00l\x00a\x00y\x00e\x00r)
 
 [CMake]
-Build Directory Count=1
-Current Build Directory Index-Host System=0
+Build Directory Count=2
+Current Build Directory Index-Host System=1
 
 [CMake][CMake Build Directory 0]
 Build Directory Path=/home/shalomc/workspace/trials/tryplayer/build
@@ -13,6 +13,16 @@ CMake Executable=/usr/bin/cmake
 Environment Profile=
 Extra Arguments=
 Install Directory=
+Runtime=Host System
+
+[CMake][CMake Build Directory 1]
+Build Directory Path=C:/Users/Shalom/workspace/tryplayer/buildkk
+Build Type=Debug
+CMake Binary=C:/Program Files/CMake/bin/cmake.exe
+CMake Executable=C:/Program Files/CMake/bin/cmake.exe
+Environment Profile=default
+Extra Arguments=-G "MinGW Makefiles"\s
+Install Directory=C:/Program Files (x86)/tryplayer
 Runtime=Host System
 
 [Launch]

@@ -3,17 +3,22 @@ project(tryplayer)
 
 
 SET(CMAKE_MODULE_PATH ${CMAKE_MODULE_PATH} "${CMAKE_SOURCE_DIR}/Modules/")
+set(CMAKE_LIBRARY_PATH ${CMAKE_LIBRARY_PATH} " /cygdrive/c/Program\ Files/FFMPEG")
 find_package(PkgConfig)
 find_package(SDL2 REQUIRED)
 find_package(SDL2_image REQUIRED)
-find_package(SDL2_ttf REQUIRED)
-find_package(X11 REQUIRED)
+find_package(SDL2_ttf)
 
-pkg_check_modules(LIBAVCODEC REQUIRED libavcodec)
-pkg_check_modules(LIBAVFORMAT REQUIRED libavformat)
-pkg_check_modules(LIBAVUTIL REQUIRED libavutil)
-pkg_check_modules(LIBSWSCALE REQUIRED libswscale)
+if (${CMAKE_SYSTEM} MATCHES  "Linux")
+    find_package(X11 REQUIRED)
+endif()
 
+#pkg_check_modules(LIBAVCODEC REQUIRED libavcodec)
+#pkg_check_modules(LIBAVFORMAT REQUIRED libavformat)
+#pkg_check_modules(LIBAVUTIL REQUIRED libavutil)
+#pkg_check_modules(LIBSWSCALE REQUIRED libswscale)
+
+find_package(FFMPEG REQUIRED)
 
 # Find includes in corresponding build directories
 set(CMAKE_INCLUDE_CURRENT_DIR ON)
@@ -22,31 +27,37 @@ set(tryplayer_SRC
   src/main.cpp
 )
 
-# Create code from a list of Qt designer ui files.
-#set(CMAKE_AUTOUIC ON) # use this if you have CMake 3.x instead of the following
-#qt5_wrap_ui(tryplayer_SRC src/tryplayer.ui)
-
 # Tell CMake to create the helloworld executable
 add_executable(tryplayer ${tryplayer_SRC})
 
 include_directories(
     ${LIBAVUTIL_INCLUDE_DIRS}
     ${LIBAVCODEC_INCLUDE_DIRS}
+    ${FFMPEG_INCLUDE_DIR}
     ${LIBSWSCALE_INCLUDE_DIRS}
     ${SDL2_INCLUDE_DIRS}
     ${LIBAVFORMAT_INCLUDE_DIRS}
     ${X11_INCLUDE_DIR})
 
 # Use the Widgets module from Qt 5.
-target_link_libraries(tryplayer #Qt5::Widgets
+target_link_libraries(tryplayer
     ${LIBAVUTIL_LIBRARIES}
     ${LIBAVCODEC_LIBRARIES}
+    ${FFMPEG_LIBAVUTIL}
+    ${FFMPEG_LIBSWSCALE}
+    ${FFMPEG_LIBAVCODEC}
+    ${FFMPEG_LIBAVFORMAT}
     ${LIBSWSCALE_LIBRARIES}
     ${SDL2_LIBRARIES}
+    ${SDL2_IMAGE_LIBRARY}
     ${LIBAVFORMAT_LIBRARIES}
     ${X11_LIBRARIES}
-    z m)
+    m)
 
+if (${CMAKE_SYSTEM} MATCHES  "CYGWIN")
+    target_link_libraries(tryplayer argp)
+endif()
+    
 # Install the executable
 install(TARGETS tryplayer DESTINATION bin)
 
