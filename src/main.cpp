@@ -35,6 +35,8 @@ libpostproc-dev libass-dev libsdl-kitchensink-dev libsdl2-gfx-dev
 // ffmpeg -fflags nobuffer -f v4l2 -video_size 640x480  -i /dev/video0 udp://localhost:1234
 
 
+// Example file: http://samples.ffmpeg.org/MPEG2/mpegts-klv/Day%20Flight.mpg
+
 const char *argp_program_version = "tryplayer 1.0";
 const char *argp_program_bug_address = "<shalomcrown@gmail.com>";
 
@@ -70,7 +72,7 @@ char *outputWindow = nullptr;
 
 const struct argp_option options[] = {
     {"real-time", 'r', 0, 0, "Run video file at natural speed", 0},
-    {"window-name", 'n', "WINDOW_NAME", 0, "Run video file at natural speed", 0},
+    {"window-name", 'n', "WINDOW_NAME", 0, "Existing window name to play in", 0},
     {0}
 };
 
@@ -88,6 +90,7 @@ static error_t parse_opt (int key, char *arg, struct argp_state *state) {
 
         case ARGP_KEY_ARG:
             source = arg;
+	    printf("Play source %s\n", source);
             break;
         default:
           return ARGP_ERR_UNKNOWN;
@@ -339,7 +342,9 @@ int main ( int argc, char *argv[] ) {
             pVideoCodec = pLocalCodec;
             pvideoCodecparameters = pLocalCodecParameters;
             pVideoStream = stream;
-            printf("\tCodec for stream %d: %s ID %d bit_rate %ld\n", iStream, pLocalCodec->name, pLocalCodec->id, pLocalCodecParameters->bit_rate);
+            printf("\tCodec for stream %d: %s ID %d bit_rate %ld, width %d, height %d\n", 
+			iStream, pLocalCodec->name, pLocalCodec->id, pLocalCodecParameters->bit_rate,
+							pvideoCodecparameters->width, pvideoCodecparameters->height);
         }
     }
 
@@ -381,6 +386,7 @@ int main ( int argc, char *argv[] ) {
     response = 0;
 
     if (outputWindow != nullptr) {
+        printf("Using output window\n");
     	long windowHandle = getWindowId(outputWindow);
 
     	if (windowHandle == -1) {
@@ -395,6 +401,7 @@ int main ( int argc, char *argv[] ) {
     	}
 
     } else {
+		printf("Open new window\n");
         window_width = pvideoCodecparameters->width;
         window_height = pvideoCodecparameters->height;
 
@@ -402,7 +409,7 @@ int main ( int argc, char *argv[] ) {
     }
 
     if (win == nullptr) {
-        fprintf(stderr, "Coudln't open window\n");
+        fprintf(stderr, "Coudln't open window: %s\n", SDL_GetError());
         SDL_Quit();
         return -1;
     }

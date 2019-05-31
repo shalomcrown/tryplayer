@@ -1,13 +1,27 @@
 cmake_minimum_required(VERSION 2.8.11)
 project(tryplayer)
 
+include(CheckIncludeFile)
+include(CheckIncludeFileCXX)
+include(CheckIncludeFiles)
+include(ExternalProject)
 
 SET(CMAKE_MODULE_PATH ${CMAKE_MODULE_PATH} "${CMAKE_SOURCE_DIR}/Modules/")
 set(CMAKE_LIBRARY_PATH ${CMAKE_LIBRARY_PATH} " /cygdrive/c/Program\ Files/FFMPEG")
 find_package(PkgConfig)
-find_package(SDL2 REQUIRED)
+find_package(SDL2)
 find_package(SDL2_image REQUIRED)
 find_package(SDL2_ttf)
+
+if (NOT SDL2_INCLUDE_DIRS)
+	ExternalProject_Add(SDL2  URL https://www.libsdl.org/release/SDL2-2.0.9.tar.gz 
+		PREFIX ${CMAKE_SOURCE_DIR}/../SDL2 INSTALL_COMMAND "")
+endif()
+
+if (MSYS)
+	ExternalProject_Add(ARGP GIT_REPOSITORY https://github.com/alexreg/libargp.git 
+			PREFIX ${CMAKE_SOURCE_DIR}/../ARGP CONFIGURE_COMMAND "" BUILD_COMMAND "build" INSTALL_COMMAND "" BUILD_IN_SOURCE TRUE)
+endif()
 
 if (${CMAKE_SYSTEM} MATCHES  "Linux")
     find_package(X11 REQUIRED)
@@ -27,7 +41,6 @@ set(tryplayer_SRC
   src/main.cpp
 )
 
-# Tell CMake to create the helloworld executable
 add_executable(tryplayer ${tryplayer_SRC})
 
 include_directories(
