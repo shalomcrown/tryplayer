@@ -10,16 +10,17 @@ SET(CMAKE_MODULE_PATH ${CMAKE_MODULE_PATH} "${CMAKE_SOURCE_DIR}/Modules/")
 set(CMAKE_LIBRARY_PATH ${CMAKE_LIBRARY_PATH} " /cygdrive/c/Program\ Files/FFMPEG")
 find_package(PkgConfig)
 find_package(SDL2)
-find_package(SDL2_image REQUIRED)
+find_package(SDL2_image)
 find_package(SDL2_ttf)
 
-if (NOT SDL2_INCLUDE_DIRS)
-	ExternalProject_Add(SDL2  URL https://www.libsdl.org/release/SDL2-2.0.9.tar.gz 
-		PREFIX ${CMAKE_SOURCE_DIR}/../SDL2 INSTALL_COMMAND "")
+if (NOT ${SDL2_FOUND})
+	ExternalProject_Add(SDL2_PROJ  URL https://www.libsdl.org/release/SDL2-2.0.9.tar.gz
+		PREFIX ${CMAKE_SOURCE_DIR}/../SDL2 INSTALL_COMMAND ""  )
+	#ExternalProject_Get_Property(SDL2_PROJ
 endif()
 
 if (MSYS)
-	ExternalProject_Add(ARGP GIT_REPOSITORY https://github.com/alexreg/libargp.git 
+	ExternalProject_Add(ARGP GIT_REPOSITORY https://github.com/alexreg/libargp.git
 			PREFIX ${CMAKE_SOURCE_DIR}/../ARGP CONFIGURE_COMMAND "" BUILD_COMMAND "build" INSTALL_COMMAND "" BUILD_IN_SOURCE TRUE)
 endif()
 
@@ -70,7 +71,7 @@ target_link_libraries(tryplayer
 if (${CMAKE_SYSTEM} MATCHES  "CYGWIN")
     target_link_libraries(tryplayer argp)
 endif()
-    
+
 # Install the executable
 install(TARGETS tryplayer DESTINATION bin)
 
