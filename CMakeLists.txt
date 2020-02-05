@@ -12,6 +12,8 @@ find_package(PkgConfig)
 find_package(SDL2)
 find_package(SDL2_image)
 find_package(SDL2_ttf)
+find_package(FLTK)
+find_package (Threads)
 
 if (NOT ${SDL2_FOUND})
 	ExternalProject_Add(SDL2_PROJ  URL https://www.libsdl.org/release/SDL2-2.0.9.tar.gz
@@ -28,21 +30,26 @@ if (${CMAKE_SYSTEM} MATCHES  "Linux")
     find_package(X11 REQUIRED)
 endif()
 
-#pkg_check_modules(LIBAVCODEC REQUIRED libavcodec)
-#pkg_check_modules(LIBAVFORMAT REQUIRED libavformat)
-#pkg_check_modules(LIBAVUTIL REQUIRED libavutil)
-#pkg_check_modules(LIBSWSCALE REQUIRED libswscale)
 
 find_package(FFMPEG REQUIRED)
 
 # Find includes in corresponding build directories
 set(CMAKE_INCLUDE_CURRENT_DIR ON)
 
+if (CMAKE_COMPILER_IS_GNUCXX OR CMAKE_COMPILER_IS_GNUCC)
+    ADD_COMPILE_OPTIONS(-std=c++17 -pthread)
+endif()
+
+SET(THREADS_PREFER_PTHREAD_FLAG ON)
+
+
 set(tryplayer_SRC
   src/main.cpp
 )
 
 add_executable(tryplayer ${tryplayer_SRC})
+
+add_executable(tryplayerfltk src/mainFltk.cpp)
 
 include_directories(
     ${LIBAVUTIL_INCLUDE_DIRS}
@@ -51,9 +58,9 @@ include_directories(
     ${LIBSWSCALE_INCLUDE_DIRS}
     ${SDL2_INCLUDE_DIRS}
     ${LIBAVFORMAT_INCLUDE_DIRS}
-    ${X11_INCLUDE_DIR})
+    ${X11_INCLUDE_DIR}
+    ${FLTK_INCLUDE_DIR})
 
-# Use the Widgets module from Qt 5.
 target_link_libraries(tryplayer
     ${LIBAVUTIL_LIBRARIES}
     ${LIBAVCODEC_LIBRARIES}
@@ -66,6 +73,20 @@ target_link_libraries(tryplayer
     ${SDL2_IMAGE_LIBRARY}
     ${LIBAVFORMAT_LIBRARIES}
     ${X11_LIBRARIES}
+    m)
+
+target_link_libraries(tryplayerfltk
+    ${LIBAVUTIL_LIBRARIES}
+    ${LIBAVCODEC_LIBRARIES}
+    ${FFMPEG_LIBAVUTIL}
+    ${FFMPEG_LIBSWSCALE}
+    ${FFMPEG_LIBAVCODEC}
+    ${FFMPEG_LIBAVFORMAT}
+    ${LIBSWSCALE_LIBRARIES}
+    ${LIBAVFORMAT_LIBRARIES}
+    ${X11_LIBRARIES}
+    ${FLTK_LIBRARIES}
+    Threads::Threads
     m)
 
 if (${CMAKE_SYSTEM} MATCHES  "CYGWIN")
