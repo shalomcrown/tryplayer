@@ -7,6 +7,8 @@
 #include <time.h>
 #include <thread>
 #include <mutex>
+#include <stdlib.h>
+
 
 #if defined(__linux__)
     #include <X11/Xlib.h>
@@ -75,8 +77,8 @@ char *outputWindow = nullptr;
 
 
 class VideoWidget : public Fl_Widget {
-	void *data = nullptr;
-	int widgetWidth, widgetHeight, lineWidth;
+	void *data;
+	int widgetWidth, widgetHeight, lineWidth, stuffHeight;
 	std::mutex data_mutex;
 
 
@@ -86,12 +88,14 @@ public:
 		widgetWidth = w;
 		widgetHeight = h;
 		lineWidth = w;
+		stuffHeight = h;
+		data = malloc(lineWidth * widgetHeight * 3);
 	}
 
 	void draw() {
 		if (data != nullptr) {
 			std::lock_guard<std::mutex> guard(data_mutex);
-			fl_draw_image((const unsigned char *)data, 0, 0, widgetWidth, widgetHeight, 3, lineWidth);
+			fl_draw_image((const unsigned char *)data, 0, 0, widgetWidth, stuffHeight, 3, lineWidth);
 		}
 	}
 
@@ -99,11 +103,14 @@ public:
 		return data;
 	}
 
-	void setData(void *data, int lineWidth) {
+	void setData(void *_data, int _lineWidth, int height) {
 		std::lock_guard<std::mutex> guard(data_mutex);
-		this->data = realloc(this->data, lineWidth * widgetHeight * 3);
-		memcpy(this->data, data, lineWidth * widgetHeight * 3);
-		this->lineWidth = lineWidth;
+		this->lineWidth = _lineWidth;
+		stuffHeight = height;
+		this->data = realloc(this->data, lineWidth * stuffHeight);
+		printf("New pointer %p\n", this->data);
+		memcpy(this->data, _data, lineWidth * stuffHeight);
+		printf("Copied\n");
 		redraw();
 	}
 };
@@ -259,19 +266,25 @@ int videoThread(VideoWidget *window) {
                     struct SwsContext *sws_ctx = sws_getContext(pFrame->width, pFrame->height,
                                                                 pVideoStream->codec->pix_fmt,
                                                                 window_width, window_height,
-                                                                AV_PIX_FMT_YUV420P,
+																AV_PIX_FMT_RGB24,
                                                                 SWS_BILINEAR, NULL, NULL, NULL );
 
                     /* buffer is going to be written to rawvideo file, no alignment */
-                    if (av_image_alloc(dst_data, dst_linesize, window_width, window_height, AV_PIX_FMT_YUV420P, 32) < 0) {
+                    int size = av_image_alloc(dst_data, dst_linesize, window_width, window_height, AV_PIX_FMT_RGB24, 32);
+
+                    if (size < 0) {
                         fprintf(stderr, "Could not allocate destination image\n");
                         return -1;
                     }
 
-                    sws_scale(sws_ctx, pFrame->data,
+                    int height = sws_scale(sws_ctx, pFrame->data,
                               pFrame->linesize, 0, pFrame->height, dst_data, dst_linesize);
 
-                    window->setData(dst_data, dst_linesize[0]);
+                    printf("Buffer size %d, height %d\n", size, height);
+
+                    if (size > 0 && height > 0) {
+                    	window->setData(dst_data[0], dst_linesize[0], height);
+                    }
 
                     time_t currentTime = time(nullptr);
 
@@ -421,6 +434,7 @@ int main ( int argc, char *argv[] ) {
         window_width = pvideoCodecparameters->width;
         window_height = pvideoCodecparameters->height;
 
+        Fl::visual(FL_RGB);
         Fl_Window *window = new Fl_Window(window_width, window_height);
         window->label((std::string("KLV Video player - ") + fileName).c_str());
 
