@@ -77,7 +77,7 @@ char *outputWindow = nullptr;
 
 
 class VideoWidget : public Fl_Widget {
-	void *data;
+	uint8_t *data[4] = {nullptr, nullptr, nullptr, nullptr};
 	int widgetWidth, widgetHeight, lineWidth, stuffHeight;
 	std::mutex data_mutex;
 
@@ -89,29 +89,25 @@ public:
 		widgetHeight = h;
 		lineWidth = w;
 		stuffHeight = h;
-		data = malloc(lineWidth * widgetHeight * 3);
 	}
 
 	void draw() {
-		if (data != nullptr) {
-			std::lock_guard<std::mutex> guard(data_mutex);
-			fl_draw_image((const unsigned char *)data, 0, 0, widgetWidth, stuffHeight, 3, lineWidth);
+		if (data[0] != nullptr) {
+			fl_draw_image((const unsigned char *)(dst_data[0]), 0, 0, widgetWidth, stuffHeight, 3, lineWidth);
 		}
 	}
 
-	void* getData() const {
-		return data;
-	}
-
-	void setData(void *_data, int _lineWidth, int height) {
-		std::lock_guard<std::mutex> guard(data_mutex);
+	void setData(uint8_t *incomingData[4], int _lineWidth, int height) {
+		Fl::lock();
+		uint8_t *oldBuffer[4];
+		memcpy(oldBuffer, this->data, 4 * sizeof(uint8_t *));
+		memcpy(this->data, incomingData, 4 * sizeof(uint8_t *));
 		this->lineWidth = _lineWidth;
 		stuffHeight = height;
-		this->data = realloc(this->data, lineWidth * stuffHeight);
-		printf("New pointer %p\n", this->data);
-		memcpy(this->data, _data, lineWidth * stuffHeight);
-		printf("Copied\n");
+        av_freep(&oldBuffer[0]);
 		redraw();
+		Fl::unlock();
+		Fl::awake();
 	}
 };
 
@@ -283,7 +279,7 @@ int videoThread(VideoWidget *window) {
                     printf("Buffer size %d, height %d\n", size, height);
 
                     if (size > 0 && height > 0) {
-                    	window->setData(dst_data[0], dst_linesize[0], height);
+                    	window->setData(dst_data, dst_linesize[0], height);
                     }
 
                     time_t currentTime = time(nullptr);
@@ -297,7 +293,6 @@ int videoThread(VideoWidget *window) {
                     lastFrameWallclockTime = time(nullptr);
                     lastFrameTimeSeconds = frameTimeSeconds;
                     av_frame_unref(pFrame);
-                    av_freep(&dst_data[0]);
                 }
             }
 
@@ -435,6 +430,7 @@ int main ( int argc, char *argv[] ) {
         window_height = pvideoCodecparameters->height;
 
         Fl::visual(FL_RGB);
+        Fl::lock();
         Fl_Window *window = new Fl_Window(window_width, window_height);
         window->label((std::string("KLV Video player - ") + fileName).c_str());
 
