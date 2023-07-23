@@ -45,21 +45,21 @@ char *source = nullptr;
 const char *fileName = source;
 volatile bool keepWorking = true;
 
-AVFormatContext *pFormatCtx = nullptr;
-AVCodec *pVideoCodec = nullptr;
-AVStream *pVideoStream = nullptr;
+AVFormatContext *pInputFormatCtx = nullptr;
+AVCodec *pInputVideoCodec = nullptr;
+AVStream *pInputVideoStream = nullptr;
 int videoStream = -1;
 int klvStream = -1;
-AVCodecParameters *pvideoCodecparameters = nullptr;
+AVCodecParameters *pInputVideoCodecparameters = nullptr;
 AVCodecParameters *pklvCodecparameters = nullptr;
 uint8_t *dst_data[4];
 int src_linesize[4], dst_linesize[4];
 SDL_Window *win;
 double lastFrameTimeSeconds = 0;
 time_t lastFrameWallclockTime = time(nullptr);
-AVPacket *pPacket;
-AVCodecContext *pCodecContext;
-AVFrame *pFrame;
+AVPacket *pInputPacket;
+AVCodecContext *pInputCodecContext;
+AVFrame *pInputFrame;
 int response = 0;
 
 int window_width;
@@ -100,7 +100,7 @@ static error_t parse_opt (int key, char *arg, struct argp_state *state) {
           }
           break;
     }
-    
+
     return 0;
 }
 
@@ -179,17 +179,17 @@ void hexData(uint8_t *data, uint8_t *output, int length)  {
 
 int sdlVideoThread(void *) {
 
-    while (av_read_frame(pFormatCtx, pPacket) >= 0 && keepWorking) {
+    while (av_read_frame(pInputFormatCtx, pInputPacket) >= 0 && keepWorking) {
 
         // if it's the video stream
-        if (pPacket->stream_index == videoStream) {
-            if (avcodec_send_packet(pCodecContext, pPacket) < 0) {
+        if (pInputPacket->stream_index == videoStream) {
+            if (avcodec_send_packet(pInputCodecContext, pInputPacket) < 0) {
                 fprintf(stderr, "Error while sending a packet to the decoder:\n %d", response);
                 return -1;
             }
 
             for (int response = 0; response >= 0; ) {
-                response = avcodec_receive_frame(pCodecContext, pFrame);
+                response = avcodec_receive_frame(pInputCodecContext, pInputFrame);
 
                 if (response == AVERROR(EAGAIN) || response == AVERROR_EOF) {
                     break;
@@ -198,26 +198,26 @@ int sdlVideoThread(void *) {
                     return -1;
                 }
 
-                double frameTimeSeconds = (double)pFrame->pts * (double)pVideoStream->time_base.num / (double)pVideoStream->time_base.den;
+                double frameTimeSeconds = (double)pInputFrame->pts * (double)pInputVideoStream->time_base.num / (double)pInputVideoStream->time_base.den;
 
                 time_t nextFrameWallclockTime = lastFrameWallclockTime + (time_t)floor((frameTimeSeconds - lastFrameTimeSeconds) * 1000);
 
                 if (response >= 0) {
                     fprintf(stderr,
                             "Frame %dx%d %d (type=%c, size=%d bytes) pts %ld (%g) key_frame %d [DTS %d]\n",
-                            pFrame->width,
-                            pFrame->height,
-                            pCodecContext->frame_number,
-                            av_get_picture_type_char(pFrame->pict_type),
-                            pFrame->pkt_size,
-                            pFrame->pts,
+                            pInputFrame->width,
+                            pInputFrame->height,
+                            pInputCodecContext->frame_number,
+                            av_get_picture_type_char(pInputFrame->pict_type),
+                            pInputFrame->pkt_size,
+                            pInputFrame->pts,
                             frameTimeSeconds,
-                            pFrame->key_frame,
-                            pFrame->coded_picture_number
+                            pInputFrame->key_frame,
+                            pInputFrame->coded_picture_number
                     );
 
-                    struct SwsContext *sws_ctx = sws_getContext(pFrame->width, pFrame->height,
-                                                                pVideoStream->codec->pix_fmt,
+                    struct SwsContext *sws_ctx = sws_getContext(pInputFrame->width, pInputFrame->height,
+                                                                pInputVideoStream->codec->pix_fmt,
                                                                 window_width, window_height,
                                                                 AV_PIX_FMT_YUV420P,
                                                                 SWS_BILINEAR, NULL, NULL, NULL );
@@ -228,8 +228,8 @@ int sdlVideoThread(void *) {
                         return -1;
                     }
 
-                    sws_scale(sws_ctx, pFrame->data,
-                              pFrame->linesize, 0, pFrame->height, dst_data, dst_linesize);
+                    sws_scale(sws_ctx, pInputFrame->data,
+                              pInputFrame->linesize, 0, pInputFrame->height, dst_data, dst_linesize);
 
                     int w, h;
                     SDL_QueryTexture(texture, NULL, NULL, &w, &h);
@@ -258,21 +258,21 @@ int sdlVideoThread(void *) {
                     SDL_RenderPresent(ren);
                     SDL_UpdateWindowSurface(win);
                     SDL_RenderClear(ren);
-                    av_frame_unref(pFrame);
+                    av_frame_unref(pInputFrame);
                     av_freep(&dst_data[0]);
                     //sws_freeContext(sws_ctx);
                 }
             }
 
-        } else  if (pPacket->stream_index == klvStream) {
+        } else  if (pInputPacket->stream_index == klvStream) {
             fprintf(stderr, "Data packet\n");
 
             int lineCounter = 0;
             int amount;
             char buffer[123];
-            uint8_t *byte = pPacket->buf->data;
+            uint8_t *byte = pInputPacket->buf->data;
 
-            for (amount = pPacket->buf->size; amount > 0;  byte += 16, amount -= 16) {
+            for (amount = pInputPacket->buf->size; amount > 0; byte += 16, amount -= 16) {
 
                 int amountThisTime = std::min(16, amount);
                 hexData(byte, reinterpret_cast<uint8_t *>(buffer), amountThisTime);
@@ -282,15 +282,15 @@ int sdlVideoThread(void *) {
             fprintf(stderr, "Unknown packet\n");
         }
 
-        av_packet_unref(pPacket);
+        av_packet_unref(pInputPacket);
     }
 
 
-    avformat_close_input(&pFormatCtx);
-    avformat_free_context(pFormatCtx);
-    av_packet_free(&pPacket);
-    av_frame_free(&pFrame);
-    avcodec_free_context(&pCodecContext);
+    avformat_close_input(&pInputFormatCtx);
+    avformat_free_context(pInputFormatCtx);
+    av_packet_free(&pInputPacket);
+    av_frame_free(&pInputFrame);
+    avcodec_free_context(&pInputCodecContext);
     SDL_Quit();
 }
 
@@ -301,30 +301,30 @@ int main ( int argc, char *argv[] ) {
     SDL_Init(SDL_INIT_VIDEO | SDL_INIT_AUDIO | SDL_INIT_TIMER | SDL_INIT_EVENTS);
     av_register_all();
     avformat_network_init();
-    
+
     struct argp args = {options, parse_opt, nullptr, nullptr, nullptr, nullptr, nullptr};
     argp_parse(&args, argc, argv, 0, 0, 0);
-    
+
     fileName = source;
 
-    if (avformat_open_input(&pFormatCtx, fileName, nullptr, nullptr) != 0) {
+    if (avformat_open_input(&pInputFormatCtx, fileName, nullptr, nullptr) != 0) {
 
         fprintf(stderr, "Couldn't open file\n");
         return -1;
     }
 
-    if (avformat_find_stream_info(pFormatCtx, nullptr) < 0) {
+    if (avformat_find_stream_info(pInputFormatCtx, nullptr) < 0) {
         fprintf(stderr, "Couldn't find stream information\n");
         return -1;
     }
 
-    av_dump_format(pFormatCtx, 0, fileName, 0);
+    av_dump_format(pInputFormatCtx, 0, fileName, 0);
 
-    for(int iStream = 0; iStream < pFormatCtx->nb_streams; iStream++) {
+    for(int iStream = 0; iStream < pInputFormatCtx->nb_streams; iStream++) {
         AVCodec *pLocalCodec = nullptr;
-        AVCodecParameters *pLocalCodecParameters = pFormatCtx->streams[iStream]->codecpar;
+        AVCodecParameters *pLocalCodecParameters = pInputFormatCtx->streams[iStream]->codecpar;
         pLocalCodec = avcodec_find_decoder(pLocalCodecParameters->codec_id);
-        AVStream *stream = pFormatCtx->streams[iStream];
+        AVStream *stream = pInputFormatCtx->streams[iStream];
 
         if (pLocalCodecParameters->codec_type == AVMEDIA_TYPE_DATA) {
             klvStream = iStream;
@@ -339,12 +339,12 @@ int main ( int argc, char *argv[] ) {
 
         if (pLocalCodecParameters->codec_type == AVMEDIA_TYPE_VIDEO) {
             videoStream = iStream;
-            pVideoCodec = pLocalCodec;
-            pvideoCodecparameters = pLocalCodecParameters;
-            pVideoStream = stream;
-            printf("\tCodec for stream %d: %s ID %d bit_rate %ld, width %d, height %d\n", 
-			iStream, pLocalCodec->name, pLocalCodec->id, pLocalCodecParameters->bit_rate,
-							pvideoCodecparameters->width, pvideoCodecparameters->height);
+            pInputVideoCodec = pLocalCodec;
+            pInputVideoCodecparameters = pLocalCodecParameters;
+            pInputVideoStream = stream;
+            printf("\tCodec for stream %d: %s ID %d bit_rate %ld, width %d, height %d\n",
+                   iStream, pLocalCodec->name, pLocalCodec->id, pLocalCodecParameters->bit_rate,
+                   pInputVideoCodecparameters->width, pInputVideoCodecparameters->height);
         }
     }
 
@@ -353,32 +353,32 @@ int main ( int argc, char *argv[] ) {
         return -1;
     }
 
-    pCodecContext = avcodec_alloc_context3(pVideoCodec);
+    pInputCodecContext = avcodec_alloc_context3(pInputVideoCodec);
 
-    if (!pCodecContext) {
+    if (!pInputCodecContext) {
         fprintf(stderr, "failed to allocated memory for AVCodecContext\n");
         return -1;
     }
 
-    if (avcodec_parameters_to_context(pCodecContext, pvideoCodecparameters) < 0) {
+    if (avcodec_parameters_to_context(pInputCodecContext, pInputVideoCodecparameters) < 0) {
         fprintf(stderr, "failed to copy codec params to codec context\n");
         return -1;
     }
 
-    if (avcodec_open2(pCodecContext, pVideoCodec, NULL) < 0) {
+    if (avcodec_open2(pInputCodecContext, pInputVideoCodec, NULL) < 0) {
         fprintf(stderr, "failed to open codec through avcodec_open2\n");
         return -1;
     }
 
 
-    pFrame = av_frame_alloc();
-    if (!pFrame) {
+    pInputFrame = av_frame_alloc();
+    if (!pInputFrame) {
         fprintf(stderr, "failed to allocated memory for AVFrame\n");
         return -1;
     }
 
-    pPacket = av_packet_alloc();
-    if (!pPacket) {
+    pInputPacket = av_packet_alloc();
+    if (!pInputPacket) {
         fprintf(stderr, "failed to allocated memory for AVPacket\n");
         return -1;
     }
@@ -402,8 +402,8 @@ int main ( int argc, char *argv[] ) {
 
     } else {
 		printf("Open new window\n");
-        window_width = pvideoCodecparameters->width;
-        window_height = pvideoCodecparameters->height;
+        window_width = pInputVideoCodecparameters->width;
+        window_height = pInputVideoCodecparameters->height;
 
         win = SDL_CreateWindow(fileName, 100, 100, window_width, window_height, SDL_WINDOW_SHOWN);
     }
@@ -457,5 +457,3 @@ int main ( int argc, char *argv[] ) {
     SDL_Quit();
     return 0;
 }
-
-

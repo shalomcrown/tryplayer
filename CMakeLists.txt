@@ -8,10 +8,10 @@ include(ExternalProject)
 
 SET(CMAKE_MODULE_PATH ${CMAKE_MODULE_PATH} "${CMAKE_SOURCE_DIR}/Modules/")
 set(CMAKE_LIBRARY_PATH ${CMAKE_LIBRARY_PATH} " /cygdrive/c/Program\ Files/FFMPEG")
+set(OpenGL_GL_PREFERENCE GLVND)
+
 find_package(PkgConfig)
 find_package(SDL2)
-find_package(SDL2_image)
-find_package(SDL2_ttf)
 find_package(FLTK)
 find_package (Threads)
 
@@ -31,7 +31,17 @@ if (${CMAKE_SYSTEM} MATCHES  "Linux")
 endif()
 
 
-find_package(FFMPEG REQUIRED)
+
+find_package(PkgConfig REQUIRED)
+pkg_check_modules(LIBAV REQUIRED IMPORTED_TARGET
+		libavdevice
+		libavfilter
+		libavformat
+		libavcodec
+		libswresample
+		libswscale
+		libavutil
+		)
 
 # Find includes in corresponding build directories
 set(CMAKE_INCLUDE_CURRENT_DIR ON)
@@ -45,11 +55,12 @@ SET(THREADS_PREFER_PTHREAD_FLAG ON)
 
 set(tryplayer_SRC
   src/main.cpp
-)
+		src/utils.cpp)
 
 add_executable(tryplayer ${tryplayer_SRC})
-
-add_executable(tryplayerfltk src/mainFltk.cpp)
+add_executable(tryplayerfltk src/mainFltk.cpp src/utils.cpp)
+add_executable(rtsp-test src/rtsp-envelope.cpp src/utils.cpp)
+add_executable(remuxing src/remuxing.c)
 
 include_directories(
     ${LIBAVUTIL_INCLUDE_DIRS}
@@ -62,13 +73,7 @@ include_directories(
     ${FLTK_INCLUDE_DIR})
 
 target_link_libraries(tryplayer
-    ${LIBAVUTIL_LIBRARIES}
-    ${LIBAVCODEC_LIBRARIES}
-    ${FFMPEG_LIBAVUTIL}
-    ${FFMPEG_LIBSWSCALE}
-    ${FFMPEG_LIBAVCODEC}
-    ${FFMPEG_LIBAVFORMAT}
-    ${LIBSWSCALE_LIBRARIES}
+	PkgConfig::LIBAV
     ${SDL2_LIBRARIES}
     ${SDL2_IMAGE_LIBRARY}
     ${LIBAVFORMAT_LIBRARIES}
@@ -76,18 +81,22 @@ target_link_libraries(tryplayer
     m)
 
 target_link_libraries(tryplayerfltk
-    ${LIBAVUTIL_LIBRARIES}
-    ${LIBAVCODEC_LIBRARIES}
-    ${FFMPEG_LIBAVUTIL}
-    ${FFMPEG_LIBSWSCALE}
-    ${FFMPEG_LIBAVCODEC}
-    ${FFMPEG_LIBAVFORMAT}
-    ${LIBSWSCALE_LIBRARIES}
-    ${LIBAVFORMAT_LIBRARIES}
+	PkgConfig::LIBAV
     ${X11_LIBRARIES}
     ${FLTK_LIBRARIES}
     Threads::Threads
     m)
+
+
+target_link_libraries(rtsp-test
+		PkgConfig::LIBAV
+		Threads::Threads
+		m)
+
+target_link_libraries(remuxing
+		PkgConfig::LIBAV
+		Threads::Threads
+		m)
 
 if (${CMAKE_SYSTEM} MATCHES  "CYGWIN")
     target_link_libraries(tryplayer argp)
